@@ -1,0 +1,12 @@
+# files to ignore when pushing stuff to github
+.DS_Store
+__pycache__
+.ipynb_checkpoints
+*.egg-info
+build
+#dist
+dev
+data
+build.sh
+bld.dat
+zenodo*

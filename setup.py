@@ -26,7 +26,7 @@ setup(
     author_email="has4551@mavs.uta.edu",
     keywords="periodic signal detection",
     license="MIT",
-    packages=["amtm_signaldetect_pkg"],
+    packages=["amtm_signaldetect"],
     install_requires=["multitaper", "scipy", "numpy", "matplotlib"],
     include_package_data=True,
 )
