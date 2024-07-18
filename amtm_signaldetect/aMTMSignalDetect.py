@@ -501,9 +501,9 @@ def get_gamtest_confs(tdata, afFreq, afSpec, afAlpha, afBkg, NW, Frange = None):
     afData_min = np.nanmin(alphaj_in)
     afZ = np.arange(0, 15, 0.001) #define z-array with stepsize of 0.001
     #print('Z array length:', len(afZ), '\tdz:', afZ[1]-afZ[0])
-    print('Min of alphaj = %0.1f, and min of alpha*10 is %0.1f, floor(min(alpha)*10) = %d,'
-         'and floor(min(alpha)*10)/10 = %0.1f'%(afData_min, afData_min*10.0, np.floor(afData_min*10.0), 
-                                                np.floor(afData_min*10.0)/10.0) )
+    #print('Min of alphaj = %0.1f, and min of alpha*10 is %0.1f, floor(min(alpha)*10) = %d,'
+    #     'and floor(min(alpha)*10)/10 = %0.1f'%(afData_min, afData_min*10.0, np.floor(afData_min*10.0), 
+    #                                            np.floor(afData_min*10.0)/10.0) )
     #--Use `np or plt.hist` to define pdf of alphaj over [alpha_min,K+dalpha] range
     binwidth = 0.1 # bin width as defined by Simone 
     #fig, ax = plt.subplots(2, figsize = (8,10))
@@ -515,7 +515,7 @@ def get_gamtest_confs(tdata, afFreq, afSpec, afAlpha, afBkg, NW, Frange = None):
     #print(bin_edges[:4], bin_edges[1]-bin_edges[0], '\nLenght ncounts',len(nCounts), '\nLength bin_edges', len(bin_edges))
     p_alpha = nCounts #pdf of alpha 
     d_alpha = np.diff(bin_edges) #delta alpha which is predefined as 0.2
-    print('Using plt.hist with Density = True, integral (sum) under hist:', np.sum(nCounts * np.diff(bin_edges)), '== 1')
+    #print('Using plt.hist with Density = True, integral (sum) under hist:', np.sum(nCounts * np.diff(bin_edges)), '== 1')
     #print(len(p_alpha), len(bin_edges))
     #--Defining CDF Gamma data array
     cdf_gamma = np.array([]) #initialize empty cdf_gamma array
@@ -558,7 +558,22 @@ def get_gamtest_confs(tdata, afFreq, afSpec, afAlpha, afBkg, NW, Frange = None):
     return(gammaj, afZ[ind90[0,0]], afZ[ind95[0,0]], afZ[ind99[0,0]], afZ[ind50[0,0]]);
 
 def get_ftest_confs(Ktprs, tdata, afFreq, afFtest, NW, Frange):
-    """Compute/return Ftest confidence level(s) using F-distribution percent point function"""
+    """ Compute/return Ftest confidence level(s) using F-distribution percent point function
+      :Params:
+        Ktprs: (int) number of tprs to use
+        tdata: (ndarray) corresponding time array for data series
+        afFreq: (ndarray) positive fourier frequency array
+        afFtest: (ndarray) Ftest array that corresponds to background-fitted PSD
+        NW: (>1, int) frequency resolution bandwidth
+        Frange: (optional, ndarray) frequency range [flow, fhigh] to perform background fit over
+        
+    :Returns:
+        Fcrit90: (float) 90% confidence level Ftest value
+        Fcrit95: (float) 95% confidence level Ftest value
+        Fcrit99: (float) 99% confidence level Ftest value
+        Fcrit50: (float) 50% confidence level Ftest value
+        Ftest_trim: (ndarray) Ftest array that corresponds to background-fitted PSD frequency range 
+    """
     #-Trim Ftest array over default or user-chosen background fit frequency range
     Ftest_trim = freqtrim_ftest(tdata, afFreq, afFtest, NW, Frange)
     #-Compute Ftest confidence levels
@@ -570,7 +585,7 @@ def get_ftest_confs(Ktprs, tdata, afFreq, afFtest, NW, Frange):
     return(Fcrit90, Fcrit95, Fcrit99, Ftest_trim);
 
 def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit):
-    """Find +[user-inputted] conf peaks of Ftest, Gamma-statistic, and overlapping peaks
+    """Find +[user-inputted]% conf peaks of Ftest, Gamma-statistic, and overlapping peaks
     
     :Params:
         afFreq: (ndarray) fourier frequency array that corresponds to background-fitted PSD
@@ -587,7 +602,7 @@ def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit):
     """
     #print(type(afGam), type(Gcrit))
     #print(Gcrit)
-    print(np.shape(afGam), np.shape(af_Ftest), np.shape(afFreq))
+    #print(np.shape(afGam), np.shape(af_Ftest), np.shape(afFreq))
     #print(np.shape(afGam[:,0]))
     """find_peaks gets angry about accepting only 1D arrays and afGam/af_Ftest are 1D arrays within an array. 
     So I gotta index into them to avoid the errors"""
@@ -596,12 +611,12 @@ def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit):
     Fpeaks, _ = find_peaks(af_Ftest, height = Fcrit)
     freq_fpks = afFreq[Fpeaks] #defining corrsponding frequency array for peaks
     freq_gpks = afFreq[Gpeaks]
-    print('Gpeaks indices:', Gpeaks)
-    print('Fpeaks indices:', Fpeaks)
-    print('Fpeaks freqs:\n', afFreq[Fpeaks])
-    print('Gpeaks freqs:\n', afFreq[Gpeaks])
+    #print('Gpeaks indices:', Gpeaks)
+    #print('Fpeaks indices:', Fpeaks)
+    #print('Fpeaks freqs:\n', afFreq[Fpeaks])
+    #print('Gpeaks freqs:\n', afFreq[Gpeaks])
     freq_isect = np.intersect1d(freq_fpks, freq_gpks) #returns which frequency element values and indices intersect
     FG_pk = np.intersect1d(Fpeaks, Gpeaks) #returns element value (which would be a peak-index) that intersects both Fpeaks and Gpeaks
-    print('With %d conf level, there are %d frequency intersections'%(Fcrit, len(FG_pk)))
+    print('With conf level, frequency intersection(s) = %d'%(len(FG_pk)))
     print('Intersection:',freq_isect, FG_pk)
     return(Fpeaks, Gpeaks, FG_pk, freq_isect); 
