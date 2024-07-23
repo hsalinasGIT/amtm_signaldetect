@@ -455,7 +455,7 @@ def freqtrim_ftest(afTime_in, afFreq, afFtest, NW, Frange = None):
     else: #user-chosen frequency rage
         f_low = np.argwhere(afFreq >= Frange[0])
         f_up = np.argwhere(afFreq >= Frange[1])
-        Ftest_trim = afFtest[f_low[0,0]:f_up[0,0]]
+        Ftest_in = afFtest[f_low[0,0]:f_up[0,0]]
     return(Ftest_in);
   
 # # 3) Function which calculates confidence thresholds of $\gamma$-test and F-test to determine if a PSD enhancement is a discrete periodic signal
