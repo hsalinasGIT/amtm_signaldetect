@@ -24,13 +24,14 @@ import numpy as np
 ## 1) Function Which Returns aMTM Spectral Data Products
 #* `get_amtm_specs()`**uses Prieto's MTM package and returns aMTM power spectra ($S_k$), the corresponding frequencies ($f_k$), the half-degrees of freedom ($α_k$), and the Harmonic F-test ($F_k$) over the positive frequency range [0, $f_{ny}$].** 
 
-def get_amtm_specs(xdata, tdata, NW, Ktpr = None):
+def get_amtm_specs(xdata, tdata, achFull, NW, Ktpr = None):
     """Using Prieto's MTM python package: Compute/return the aMTM PSD, corresponding frequencies, 
     half-degrees of freedom, and F-test arrays over the positive frequency range [0, fny]
     
     :Params:
         xdata: data series to be Fourier transformed (ie. X(t), Y(t), etc)
         tdata: corresponding "time" series of above data series
+        achFull: (str) option to return spectral products over full or positive frequency spectrum
         NW: (>1, an integer) frequency resolution bandwidth
         Ktpr: (optional, int) number of tapers to use 
     :Returns:
@@ -49,25 +50,34 @@ def get_amtm_specs(xdata, tdata, NW, Ktpr = None):
     #--Extract Pietro MTM Spectra Data
     print('Creating Prieto MTSPEC class for Data(NW = %d, Ktpr = %d)'%(NW, Ktpr))
     psd_class = MTSpec(afData_nmean, NW, Ktpr, dt, nfft = N, iadapt=0)     
-    afFreq ,afRaw_Sk = psd_class.rspec() #return PDS at positive frequencies (up to Nyquist Freq)
-    aafWeight = psd_class.wt #extract spectra weights
-    afAlpha = get_spectra_dofA(Ktpr, aafWeight, len(afFreq)) #compute alphaj from MTM Spectra half degrees-of-freedom definition
-    #--Extract F test for positive freq only (up to Nyquist frequency)
-    Ftest,p = psd_class.ftest()
-    Ftest = Ftest[0:psd_class.nf]
+    if achFull == 'full': #return entire frequency spectrum for all spectral dataproducts
+        afFreq = psd_class.freq
+        afRaw_Sk = psd_class.spec
+        aafWeight = psd_class.wt #extract spectra weights
+        afAlpha = get_spectra_dofA(Ktpr, aafWeight, len(afFreq), achFull) #compute alphaj from MTM Spectra half degrees-of-freedom definition
+        Ftest,p = psd_class.ftest() #extract Ftest
+    else: #return only positive frequency spectrum for all spectral dataproducts
+        afFreq ,afRaw_Sk = psd_class.rspec() #return PDS at positive frequencies (up to Nyquist Freq)
+        aafWeight = psd_class.wt #extract spectra weights
+        afAlpha = get_spectra_dofA(Ktpr, aafWeight, len(afFreq), achFull) #compute alphaj from MTM Spectra half degrees-of-freedom definition
+        #--Extract F test for positive freq only (up to Nyquist frequency)
+        Ftest,p = psd_class.ftest()
+        Ftest = Ftest[0:psd_class.nf]
     #print('afFreq type:', type(afFreq), '\nafRawSk type',type(afRaw_Sk),'\nafAlphaj type',type(afAlpha), '\nFtest type:', type(Ftest))
     #print('afFreq shape:', np.shape(afFreq), '\nafRawSk shape',np.shape(afRaw_Sk),'\nafAlphaj shape',np.shape(afAlpha), '\nFtest shape:', np.shape(Ftest))
     """Prieto casts most of the spectra dataproducts as a 1D array inside an array making them 2D. 
     So we enforce them to be 1D arrays to avoid errors. """ 
     return (afFreq[:,0], afRaw_Sk[:,0], afAlpha, Ftest[:,0]);
     
-def get_spectra_dofA(Ktprs, weight, nyqLen):
+def get_spectra_dofA(Ktprs, weight, nyqLen, achOpt):
     """Define alpha_j from half degrees of freedom formula in Simone+, JGR 2021 
     
     :Params:
         Ktprs: (int) number of tapers
         weight: (mxndarray) MTM spectral weights
         nyqLen: (npts) lenght of frequency array up to Nyquist Frequency
+        achOpt: (str) option to compute alphaj over full or positive frequency range
+
     
     :Returns:
         alphaj: (ndarray) half-degrees of freedom defined over positive frequency range 
@@ -79,9 +89,14 @@ def get_spectra_dofA(Ktprs, weight, nyqLen):
     #'''
     w2_sum = 0
     w4_sum = 0
-    for i in range(Ktprs):
-        w2_sum = w2_sum + weight[:nyqLen, i]**2
-        w4_sum = w4_sum + weight[:nyqLen, i]**4
+    if achOpt == 'full': #return half-dof over full frequency spectrum
+        for i in range(Ktprs):
+            w2_sum = w2_sum + weight[:, i]**2
+            w4_sum = w4_sum + weight[:, i]**4
+    else: #return half-dof over positive frequency spectrum
+        for i in range(Ktprs):
+            w2_sum = w2_sum + weight[:nyqLen, i]**2
+            w4_sum = w4_sum + weight[:nyqLen, i]**4
     '''
     #Works for NW = 3, K = 5 --v
     d1 = weight[:nyqLen,0]
