@@ -170,7 +170,7 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
     must omit the 1st (0Hz) and last element (Nyq F) of the frequency array because both the spectrum 
     values at the zero and Nyquist frequency do not follow the chi-square distribution.'''
     # Fit Background Based on User Input
-    if achFit == 'BPL':
+    if achFit == 'BPL': 
     #Define Initial Guestimates and Optimize BPL coefficients
         print('\tBPL Fitting %s'%achFreqRange)
         bpl_guess = get_bpl_guess(Fj_in, Sj_in, alphaj_in)
@@ -180,11 +180,12 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
         gam_bnd = (0,15)
         fb_bnd = (Fj_in[0], Fj_in[-1])
         bpl_bnds = (c_bnd, bet_bnd, gam_bnd, fb_bnd)
-        achMeth = 'Powell'#'Powell'#'SLSQP'
+        #print('\tBPL_guess = ', bpl_guess)
+        achMeth = 'Powell'#'Powell'#'Powell'#'SLSQP'
         """ L-BFGS-B method fails and Powell works[better c-estimate that SLSQP]"""
         print('\tUsing %s optimize method--v'%(achMeth))
         bpl_min = optimize.minimize(bpl_loglikeM_ctoo, x0 = bpl_guess, args=(Fj_in, Sj_in, alphaj_in), 
-                                    method = achMeth,bounds = bpl_bnds)#, options = {'disp': True})
+                                    method = achMeth,bounds = bpl_bnds)#, options = {'disp': True, 'ftol': 1e-3, 'return_all':True})
         #bpl_min = optimize.direct(bpl_loglikeM, args=(Fj_in, Sj_in, alphaj_in),bounds = bpl_bnds)#, options = {'disp': True})
         bpl_return = bpl_min.x
         [bpl_best, bCorrect] = correct_bpl_param(bpl_return) #BPL correction check for beta > gamma
@@ -193,7 +194,10 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
             print('\tOptimized Corrected-BPL Params for [c, beta, gamma, fb]:\n\t\t', bpl_best)
         else:
             print('\tOptimized BPL Params for [c, beta, gamma, fb]:\n\t\t', bpl_best)
-        Bj_best = get_bpl_line(Fj_in, bpl_best) 
+        Bj_best = get_bpl_line(Fj_in, bpl_best)
+        """Might implement a print statement to catch anytime the BPL fit is an outlier (8-13-2024)"""
+        #if np.var(Bj_best) > 4*(2*NW-1): #chisquare var  = 2K
+        #    print('->WARNING: Fit might be bad!-<')
         fit_best = bpl_best
     elif achFit == 'PL':
     #Define Initial Guestimates and Optimize PL coefficients
@@ -269,7 +273,8 @@ def get_pl_guess(afFj, afSj, alphaj):
     #Assume j_lw and j_up correspond to 1st and last indices of the frequency array
     dUp = len(afFj)-1
     dLow = 0 
-    bet0 = ( np.log10(afSj[dLow]/afSj[dUp]) ) / ( np.log10(afFj[dUp]/afFj[dLow]) ) #returns single-element array
+    bet0 = np.nanmean(np.log10(afSj[dLow:dLow+5]/afSj[dUp-5:dUp])) / np.nanmean(np.log10(afSj[dLow:dLow+5]/afSj[dUp-5:dUp])) 
+            #old way: bet0 = ( np.log10(afSj[dLow]/afSj[dUp]) ) / ( np.log10(afFj[dUp]/afFj[dLow]) ) #returns single-element array
     c0 = get_pl_cfactor(bet0, afFj, afSj, alphaj) #recover PL c-factor
     #print(type(c0), type(bet0))
     pl_guess0 = [c0, bet0]
@@ -349,9 +354,11 @@ def get_bpl_guess(afFj, afSj, alphaj):
     dUp = len(afFj)-1
     dLow = 0 
     #Define initial guesses for [c, beta, gamma, fb]
-    fb0 = afFj[dMid]
-    bet0 = ( np.log(afSj[dLow]/afSj[dMid]) ) / ( np.log(fb0/afFj[dLow]) ) 
-    gam0 = ( np.log(afSj[dMid]/afSj[dUp]) ) / ( np.log(afFj[dUp]/fb0))
+    fb0 = afFj[dMid]#np.nanmean(afFj[dMid:dMid+5])
+    bet0 = np.nanmean( np.log(afSj[dLow:dLow+5]/afSj[dMid-5:dMid])) / np.nanmean( np.log(fb0/afFj[dLow:dLow+5]))
+            #old way: bet0 = ( np.log(afSj[dLow]/afSj[dMid]) ) / ( np.log(fb0/afFj[dLow]) ) 
+    gam0 = np.nanmean( np.log(afSj[dMid:dMid+5]/afSj[dUp-5:dUp])) / np.nanmean( np.log(afFj[dUp-5:dUp]/fb0))
+            #old way: gam0 = ( np.log(afSj[dMid]/afSj[dUp]) ) / ( np.log(afFj[dUp]/fb0))
     #print(type(bet0), type(gam0), type(fb0)) #, they're all numpy arrays
     bpl_guess0 = [bet0, gam0, fb0]
     c0 = get_bpl_cfactor2(bpl_guess0, afFj, afSj, alphaj) #recover BPL f-factor
