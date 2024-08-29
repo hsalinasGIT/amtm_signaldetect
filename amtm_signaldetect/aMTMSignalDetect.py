@@ -273,7 +273,7 @@ def get_pl_guess(afFj, afSj, alphaj):
     #Assume j_lw and j_up correspond to 1st and last indices of the frequency array
     dUp = len(afFj)-1
     dLow = 0 
-    bet0 = np.nanmean(np.log10(afSj[dLow:dLow+5]/afSj[dUp-5:dUp])) / np.nanmean(np.log10(afSj[dLow:dLow+5]/afSj[dUp-5:dUp])) 
+    bet0 = np.nanmean(np.log10(afSj[dLow:dLow+5]/afSj[dUp-5:dUp])) / np.nanmean(np.log10(afFj[dUp-5:dUp]/afFj[dLow:dLow+5])) 
             #old way: bet0 = ( np.log10(afSj[dLow]/afSj[dUp]) ) / ( np.log10(afFj[dUp]/afFj[dLow]) ) #returns single-element array
     c0 = get_pl_cfactor(bet0, afFj, afSj, alphaj) #recover PL c-factor
     #print(type(c0), type(bet0))
