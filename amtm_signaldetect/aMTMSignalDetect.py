@@ -273,8 +273,11 @@ def get_pl_guess(afFj, afSj, alphaj):
     #Assume j_lw and j_up correspond to 1st and last indices of the frequency array
     dUp = len(afFj)-1
     dLow = 0 
-    bet0 = np.nanmean(np.log10(afSj[dLow:dLow+5]/afSj[dUp-5:dUp])) / np.nanmean(np.log10(afFj[dUp-5:dUp]/afFj[dLow:dLow+5])) 
-            #old way: bet0 = ( np.log10(afSj[dLow]/afSj[dUp]) ) / ( np.log10(afFj[dUp]/afFj[dLow]) ) #returns single-element array
+    if len(afSj) < 11: #condition for super-short spectral data arrays (because of Jake 8-29-2024)
+        #use old way of initializing guess
+        bet0 = ( np.log10(afSj[dLow]/afSj[dUp]) ) / ( np.log10(afFj[dUp]/afFj[dLow]) ) #returns single-element array
+    else: #spectral data arrays have >= 11dtps
+        bet0 = np.nanmean(np.log10(afSj[dLow:dLow+5]/afSj[dUp-5:dUp])) / np.nanmean(np.log10(afFj[dUp-5:dUp]/afFj[dLow:dLow+5])) 
     c0 = get_pl_cfactor(bet0, afFj, afSj, alphaj) #recover PL c-factor
     #print(type(c0), type(bet0))
     pl_guess0 = [c0, bet0]
@@ -355,10 +358,13 @@ def get_bpl_guess(afFj, afSj, alphaj):
     dLow = 0 
     #Define initial guesses for [c, beta, gamma, fb]
     fb0 = afFj[dMid]#np.nanmean(afFj[dMid:dMid+5])
-    bet0 = np.nanmean( np.log(afSj[dLow:dLow+5]/afSj[dMid-5:dMid])) / np.nanmean( np.log(fb0/afFj[dLow:dLow+5]))
-            #old way: bet0 = ( np.log(afSj[dLow]/afSj[dMid]) ) / ( np.log(fb0/afFj[dLow]) ) 
-    gam0 = np.nanmean( np.log(afSj[dMid:dMid+5]/afSj[dUp-5:dUp])) / np.nanmean( np.log(afFj[dUp-5:dUp]/fb0))
-            #old way: gam0 = ( np.log(afSj[dMid]/afSj[dUp]) ) / ( np.log(afFj[dUp]/fb0))
+    if len(afSj) < 11: #super short spectral data arrays (because of Jake 8-29-2024)
+        #use old way of initializing guess
+        bet0 = ( np.log(afSj[dLow]/afSj[dMid]) ) / ( np.log(fb0/afFj[dLow]) ) 
+        gam0 = ( np.log(afSj[dMid]/afSj[dUp]) ) / ( np.log(afFj[dUp]/fb0))
+    else: #use new way of initializing guess
+        bet0 = np.nanmean( np.log(afSj[dLow:dLow+5]/afSj[dMid-5:dMid])) / np.nanmean( np.log(fb0/afFj[dLow:dLow+5]))
+        gam0 = np.nanmean( np.log(afSj[dMid:dMid+5]/afSj[dUp-5:dUp])) / np.nanmean( np.log(afFj[dUp-5:dUp]/fb0))
     #print(type(bet0), type(gam0), type(fb0)) #, they're all numpy arrays
     bpl_guess0 = [bet0, gam0, fb0]
     c0 = get_bpl_cfactor2(bpl_guess0, afFj, afSj, alphaj) #recover BPL f-factor
