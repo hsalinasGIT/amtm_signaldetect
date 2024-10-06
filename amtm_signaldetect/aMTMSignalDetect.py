@@ -78,7 +78,6 @@ def get_spectra_dofA(Ktprs, weight, nyqLen, achOpt):
         nyqLen: (npts) lenght of frequency array up to Nyquist Frequency
         achOpt: (str) option to compute alphaj over full or positive frequency range
 
-    
     :Returns:
         alphaj: (ndarray) half-degrees of freedom defined over positive frequency range 
     """
@@ -175,18 +174,17 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
         print('\tBPL Fitting %s'%achFreqRange)
         bpl_guess = get_bpl_guess(Fj_in, Sj_in, alphaj_in)
         #--Defining BPL coefficient bounds
-        c_bnd = (0,np.max(afSpec))
+        c_bnd = (np.min(Sj_in),np.max(Sj_in))#[Smin, Smax] yielded best c-parameter for SLSQP method
         bet_bnd = (-5,10)
         gam_bnd = (0,15)
         fb_bnd = (Fj_in[0], Fj_in[-1])
         bpl_bnds = (c_bnd, bet_bnd, gam_bnd, fb_bnd)
         #print('\tBPL_guess = ', bpl_guess)
-        achMeth = 'Powell'#'Powell'#'Powell'#'SLSQP'
-        """ L-BFGS-B method fails and Powell works[better c-estimate that SLSQP]"""
+        achMeth = 'SLSQP'#confirmed SLSQP is better than Powell
+        """ (9-2024) Confirmed SLSQP modells better than Powell and L-BFGS-B method fails"""
         print('\tUsing %s optimize method--v'%(achMeth))
         bpl_min = optimize.minimize(bpl_loglikeM_ctoo, x0 = bpl_guess, args=(Fj_in, Sj_in, alphaj_in), 
                                     method = achMeth,bounds = bpl_bnds)#, options = {'disp': True, 'ftol': 1e-3, 'return_all':True})
-        #bpl_min = optimize.direct(bpl_loglikeM, args=(Fj_in, Sj_in, alphaj_in),bounds = bpl_bnds)#, options = {'disp': True})
         bpl_return = bpl_min.x
         [bpl_best, bCorrect] = correct_bpl_param(bpl_return) #BPL correction check for beta > gamma
         #print(bCorrect, bpl_best)
@@ -204,10 +202,10 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
         print('\tPower Law Fitting %s'%achFreqRange)
         bet0 = get_pl_guess(Fj_in, Sj_in, alphaj_in)
         #--Defining Power Law coefficient bounds
-        c_bnd = (0,np.max(afSpec))
+        c_bnd = (np.min(Sj_in),np.max(Sj_in))#assuming [Smin, Smax] yielded best c-parameter for PL-fit. Need to check (10-6-2024); #old: (0, np.max(afSpec))
         bet_bnd = (0,10)
         pl_bnds = (c_bnd, bet_bnd)#[(bet_bnd)]
-        achMeth = 'Powell'#'Nelder-Mead'#'Powell'#'SLSQP'
+        achMeth = 'SLSQP'#'Nelder-Mead'#'Powell'#'SLSQP'
         #it appears after properly extacting the beta0 as a float fixed the Powell Method (optimize beta and c)
         """ L-BFGS-B and fails (Powell[better] and SLSQP work)"""
         print('\tUsing %s optimize method--v\n'%(achMeth))
@@ -220,7 +218,6 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
         fit_best = pl_best
     else: #(default) do White Noise (PL with beta = 0) fit
         print('\tWHT Fitting (Analytical Solution) %s'%achFreqRange)
-        #achMeth = 'Powell'#'Powell'#'SLSQP'
         wht_best = np.sum(alphaj_in*Sj_in)/np.sum(alphaj_in)
         print('\tAnalytical WHT Param for [c]:\t', wht_best)
         Bj_best = np.ones(len(Fj_in))*wht_best#get_bpl_line(Fj_in, bpl_best) 
@@ -288,7 +285,7 @@ def pl_loglikeM(pl_params, afFj, afSj, alphaj):
     """Function(Max log-likelihood) whose coefficient parameters(which belong to the PL Eqn) will be 
     minimized. Inputs: [c, beta], Fj, Sj, alphaj
     
-     :Params:
+    :Params:
         pl_params: (ndarray) PL coefficients [c, beta]
         afFj: (ndarray) data series for Fourier frequencies
         afSj: (ndarray) data series for aMTM PSD
@@ -612,7 +609,77 @@ def get_ftest_confs(Ktprs, tdata, afFreq, afFtest, NW, Frange):
     Fcrit99 = scipy.stats.f.ppf(0.99,dof1,dof2)
     return(Fcrit90, Fcrit95, Fcrit99, Ftest_trim);
 
-def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit):
+def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit, NW, tdata):
+    """Find +[user-inputted]% conf peaks of Ftest, Gamma-statistic, and overlapping peaks within 1 bandwidth (NW*fray) of each other
+    
+    :Params:
+        afFreq: (ndarray) fourier frequency array that corresponds to background-fitted PSD
+        afGam: (ndarray) gamma-test array
+        af_Ftest: (ndarray) Ftest array that corresponds to background-fitted PSD
+        Fcrit: (float) Ftest [input]% confidence level value
+        Gcrit: (float) gamma-test [input]% confidence level value
+    
+    :Returns:
+        Fpeaks: (ndarry) array of indices for Ftest peaks above Fcrit value
+        Gpeaks: (ndarry) array of indices for gamma-test peaks above Gcrit value
+        np.unique(afGtrue): (ndarray) array of interescting fourier frequency values where F- and gam-test peaks occur (with respect to Gamma-test)
+        np.unique(afFtrue): (ndarray) array of interescting fourier frequency values where F- and gam-test peaks occur (with respect to F-test)
+        FGpk_ind: (ndarray) corresponding array of indices , where both F-test and gam-test have peaks above their confidence levels (recall they share the same Fourier freq axis)
+    """
+    [dt, N, df, F_nyq] = get_tseries_params(tdata) #return dt, N, fray, fnyq
+    """find_peaks gets angry about accepting only 1D arrays and afGam/af_Ftest are 1D arrays within an array. 
+    So I gotta index into them to avoid the errors"""
+    #Find peaks above [user-inputted]% conf threshold
+    Gpeaks, _ = find_peaks(afGam, height = Gcrit) #find indices where Gtest has peaks above conf threshol
+    Fpeaks, _ = find_peaks(af_Ftest, height = Fcrit)
+    freq_fpks = afFreq[Fpeaks] #defining corrsponding frequency array for Fpeaks
+    freq_gpks = afFreq[Gpeaks] #define corresponding frequency array for Gpeaks
+    '''
+    print('Gpeaks indices:', Gpeaks)
+    print('Gpeaks freqs:\n', afFreq[Gpeaks])
+    print('Fpeaks indices:', Fpeaks)
+    print('Fpeaks freqs:\n', afFreq[Fpeaks])
+    freq_isect = np.intersect1d(freq_fpks, freq_gpks) #returns which frequency element values and indices intersect
+    FG_pk = np.intersect1d(Fpeaks, Gpeaks) #returns element value (which would be a peak-index) that intersects both Fpeaks and Gpeaks
+    print('With inputted conf level, frequency intersection(s) = %d'%(len(FG_pk)))
+    print('Intersection:',freq_isect, FG_pk)
+    ''';
+    #if achOpt == 'width': #new Jake way
+    #Find overlapping F-test and Gam-test peaks within 1 bandwidth (NW*fray) of each other (Jake way)
+    print('\n**Finding overlapping FG-peaks within 1 bandwidth (1*NW*fray = %0.3fHz)'%(NW*df))
+    afGtrue = np.array([])
+    afFtrue = np.array([])
+    for i in range(len(Gpeaks)): #start checking if Fpeak-freqs fall within 1NW*fray of Gpeak-freqs
+        for j in range(len(Fpeaks)):
+            if np.abs(afFreq[Gpeaks[i]] - afFreq[Fpeaks[j]]) <= NW*df:
+                #print('Intersection at (g-ind = %d or Gpeak = %0.3fHz) and (f-ind = %d or Fpeak = %0.3fHz)'
+                #     %(Gpeaks[i], afFreq[Gpeaks[i]], Fpeaks[j], afFreq[Fpeaks[j]]))
+                #print new interescting INDEX locations
+                afGtrue = np.append(afGtrue, afFreq[Gpeaks[i]])
+                afFtrue = np.append(afFtrue, afFreq[Fpeaks[j]])
+    print('New NWfray-bw intersection Gpeak freqs:', np.unique(afGtrue)) #np.unique removes duplicate index locations
+    #afGpk_true = afFreq[np.unique(afGtrue).astype(int)]
+    #print('\t|---Gpeak freqs', afGpk_true)
+    print('New NWfray-bw intersection Fpeak freqs:', np.unique(afFtrue))
+    #afFpk_true = afFreq[np.unique(afFtrue).astype(int)]
+    #print('\t|---Fpeak freqs', afFpk_true)
+    """Since the Ftest and Gamtest share the same background-fitted fourier freq array. We just need
+    to create a single array of indices based on the unique FG-intersect freqs from the Ftest"""
+    #Define array of indices for FG-intersection frequencies (based on afFtrue)
+    afFtrue_unique = np.unique(afFtrue)
+    FGpk_ind = np.empty(len(afFtrue_unique), dtype=int) #define empty array of integers
+    #print(FGpk_ind)
+    for i in range(len(afFtrue_unique)):
+        flow_ray = np.argwhere(afFreq >= afFtrue_unique[i]) #find frequency index location of f_ray from original freq-array
+        #print('Index:', flow_ray[0,0], ', Freq val:', afFreq[flow_ray[0,0]])
+        FGpk_ind[i] = flow_ray[0,0]
+        #^---recall background-fitted Ftest and Gamtest share same Fourier freq array
+    print('Intersecting index locations:', FGpk_ind, afFreq[FGpk_ind])
+    return(Fpeaks, Gpeaks, np.unique(afGtrue), np.unique(afFtrue), FGpk_ind); 
+
+
+#---------OLD WAY--------------------
+#def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit):
     """Find +[user-inputted]% conf peaks of Ftest, Gamma-statistic, and overlapping peaks
     
     :Params:
@@ -628,12 +695,15 @@ def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit):
         FG_peaks: (ndarray) array of intersecting indices, where both F-test and gam-test have peaks above their confidence levels
         freq_isect: (ndarray) array of fourier frequency values where intersecting F- and gam-test peaks occur
     """
+
+    """
+    OLD WAY (10-6-2024)
     #print(type(afGam), type(Gcrit))
     #print(Gcrit)
     #print(np.shape(afGam), np.shape(af_Ftest), np.shape(afFreq))
     #print(np.shape(afGam[:,0]))
-    """find_peaks gets angry about accepting only 1D arrays and afGam/af_Ftest are 1D arrays within an array. 
-    So I gotta index into them to avoid the errors"""
+    #find_peaks gets angry about accepting only 1D arrays and afGam/af_Ftest are 1D arrays within an array. 
+    #So I gotta index into them to avoid the errors
     #Find peaks above [user-inputted]% conf threshold
     Gpeaks, _ = find_peaks(afGam, height = Gcrit) #find indices where Gtest has peaks above conf threshol
     Fpeaks, _ = find_peaks(af_Ftest, height = Fcrit)
@@ -648,3 +718,5 @@ def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit):
     print('With conf level, frequency intersection(s) = %d'%(len(FG_pk)))
     print('Intersection:',freq_isect, FG_pk)
     return(Fpeaks, Gpeaks, FG_pk, freq_isect); 
+    """;
+
