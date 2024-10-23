@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name="amtm_signaldetect",
-    version="1.0.1",
+    version="1.0.2",
     description="Periodic Signal Detection via the Adaptive Multitaper Method (aMTM)",
     long_description=readme(),
     long_description_content_type="text/markdown",

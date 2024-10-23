@@ -208,7 +208,7 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
         achMeth = 'SLSQP'#'Nelder-Mead'#'Powell'#'SLSQP'
         #it appears after properly extacting the beta0 as a float fixed the Powell Method (optimize beta and c)
         """ L-BFGS-B and fails (Powell[better] and SLSQP work)"""
-        print('\tUsing %s optimize method--v\n'%(achMeth))
+        print('\tUsing %s optimize method--v'%(achMeth))
         pl_min = optimize.minimize(pl_loglikeM, x0 = bet0, args=(Fj_in, Sj_in, alphaj_in), bounds = pl_bnds, 
                                     method = achMeth)#, bounds = pl_bnds, options = {'disp': True})
         #print(pl_min)
@@ -486,7 +486,7 @@ def freqtrim_ftest(afTime_in, afFreq, afFtest, NW, Frange = None):
 # # 3) Function which calculates confidence thresholds of $\gamma$-test and F-test to determine if a PSD enhancement is a discrete periodic signal
 # * `get_gamtest_confs` and `get_ftest_confs`:**After first ensuring that our spectral products ($S_k,f_k,α_k,F_k$) matches the frequency-range of our background modelled PSD ($B_k$). We compute of the confidence levels (90%, 95%, 99%) of both the $\gamma$-test ($\gamma_k = S_k/B_k$) and Harmonic F-test to explicitly determine if spectral peak(s) are statistically significant (passes both dual-confidence levels)**
 
-def get_gamtest_confs(tdata, afFreq, afSpec, afAlpha, afBkg, NW, Frange = None):
+def get_gamtest_confs(tdata, afFreq, afSpec, afAlpha, afBkg, NW, Frange = None, INconf = None):
     """Compute/return the (90,95,99)% confidence levels of the gamma-test(aMTM PSD/Background Fit) 
     using the spectral dataproducts (fk, Sk, Bk, alphak) (NEW way of Compute/Return Confidence Level for the aMTM PSD)
     
@@ -498,13 +498,14 @@ def get_gamtest_confs(tdata, afFreq, afSpec, afAlpha, afBkg, NW, Frange = None):
         afBkg: (nedarray) Background-fitted PSD
         NW: (>1, int) frequency resolution bandwidth
         Frange: (optional, ndarray) frequency range [flow, fhigh] to perform background fit over
-    
+        INconf: (optional, float) custom user-inputted confidence level from 0.05-0.98
+
     :Returns:
         gammaj: (ndarray) gamma-test array 
         afZ[ind90[0,0]]:(float) 90% confidence level gamma-test value 
         afZ[ind95[0,0]]: (float) 95% confidence level gamma-test value 
         afZ[ind99[0,0]]: (float) 99% confidence level gamma-test value 
-        afZ[ind50[0,0]]: (float) 50% confidence level gamma-test value
+        afZ[ind50[0,0]]: (float) 50% (default) or custom user-inputted confidence level gamma-test value
     """
     #Ensuring spectral products match background fit frequency range
     [dt, N, df, F_nyq] = get_tseries_params(tdata) #return dt, N, fray, fnyq
@@ -567,8 +568,14 @@ def get_gamtest_confs(tdata, afFreq, afSpec, afAlpha, afBkg, NW, Frange = None):
     #plt.tight_layout()
    
     #--Finding locations of confidence levels from CDF gamma
-    #print('CDF gamma', cdf_gamma[:-4])
-    ind50 = np.argwhere(cdf_gamma >= 0.50)
+    if INconf == None:
+        print('\tReturning (default) 50% gam-test confidence level')
+        ind50 = np.argwhere(cdf_gamma >= 0.50)
+    elif (0.05 <= INconf < 0.99): #custom confidence level between 0.1-0.98 
+        print('\tReturning (cuser-inputted) %s%% gam-test confidence level'%(100*INconf))
+        ind50 = np.argwhere(cdf_gamma >= INconf)
+    else: #bad input
+        print('**Please leave `INconf` option blank or enter value from 0.05 to 0.98**')
     ind90 = np.argwhere(cdf_gamma >= 0.90)
     ind95 = np.argwhere(cdf_gamma >= 0.95)
     ind99 = np.argwhere(cdf_gamma >= 0.99)
@@ -582,7 +589,7 @@ def get_gamtest_confs(tdata, afFreq, afSpec, afAlpha, afBkg, NW, Frange = None):
     ''';
     return(gammaj, afZ[ind90[0,0]], afZ[ind95[0,0]], afZ[ind99[0,0]], afZ[ind50[0,0]]);
 
-def get_ftest_confs(Ktprs, tdata, afFreq, afFtest, NW, Frange):
+def get_ftest_confs(Ktprs, tdata, afFreq, afFtest, NW, Frange, INconf=None):
     """ Compute/return Ftest confidence level(s) using F-distribution percent point function
       :Params:
         Ktprs: (int) number of tprs to use
@@ -591,12 +598,14 @@ def get_ftest_confs(Ktprs, tdata, afFreq, afFtest, NW, Frange):
         afFtest: (ndarray) Ftest array that corresponds to background-fitted PSD
         NW: (>1, int) frequency resolution bandwidth
         Frange: (optional, ndarray) frequency range [flow, fhigh] to perform background fit over
+        INconf: (optional, float) custom user-inputted confidence level from 0.05-0.98
+
         
     :Returns:
         Fcrit90: (float) 90% confidence level Ftest value
         Fcrit95: (float) 95% confidence level Ftest value
         Fcrit99: (float) 99% confidence level Ftest value
-        Fcrit50: (float) 50% confidence level Ftest value
+        Fcrit50: (float) 50% (default) or custom user-inputted confidence level Ftest value
         Ftest_trim: (ndarray) Ftest array that corresponds to background-fitted PSD frequency range 
     """
     #-Trim Ftest array over default or user-chosen background fit frequency range
@@ -607,7 +616,16 @@ def get_ftest_confs(Ktprs, tdata, afFreq, afFtest, NW, Frange):
     Fcrit90 = scipy.stats.f.ppf(0.90,dof1,dof2) 
     Fcrit95 = scipy.stats.f.ppf(0.95,dof1,dof2)
     Fcrit99 = scipy.stats.f.ppf(0.99,dof1,dof2)
-    return(Fcrit90, Fcrit95, Fcrit99, Ftest_trim);
+    #returning user-inputted conf level
+    if INconf == None:
+        print('\tReturning (default) 50% F-test confidence level')
+        Fcrit50 = scipy.stats.f.ppf(0.50,dof1,dof2) 
+    elif (0.05 <= INconf < 0.99): #custom confidence level between 0.1-0.98
+        print('\tReturning (user-inputted) %s%% F-test confidence level'%(100*INconf))
+        Fcrit50 = scipy.stats.f.ppf(INconf,dof1,dof2) 
+    else: #bad input
+        print('**Please leave `INconf` option blank or enter value from 0.05 to 0.98**')
+    return(Fcrit90, Fcrit95, Fcrit99, Fcrit50, Ftest_trim);
 
 def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit, NW, tdata):
     """Find +[user-inputted]% conf peaks of Ftest, Gamma-statistic, and overlapping peaks within 1 bandwidth (NW*fray) of each other
