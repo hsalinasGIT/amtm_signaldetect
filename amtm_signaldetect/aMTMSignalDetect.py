@@ -572,7 +572,7 @@ def get_gamtest_confs(tdata, afFreq, afSpec, afAlpha, afBkg, NW, Frange = None, 
         print('\tReturning (default) 50% gam-test confidence level')
         ind50 = np.argwhere(cdf_gamma >= 0.50)
     elif (0.05 <= INconf < 0.99): #custom confidence level between 0.1-0.98 
-        print('\tReturning (cuser-inputted) %s%% gam-test confidence level'%(100*INconf))
+        print('\tReturning (user-inputted) %s%% gam-test confidence level'%(100*INconf))
         ind50 = np.argwhere(cdf_gamma >= INconf)
     else: #bad input
         print('**Please leave `INconf` option blank or enter value from 0.05 to 0.98**')
@@ -628,7 +628,7 @@ def get_ftest_confs(Ktprs, tdata, afFreq, afFtest, NW, Frange, INconf=None):
     return(Fcrit90, Fcrit95, Fcrit99, Fcrit50, Ftest_trim);
 
 def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit, NW, tdata):
-    """Find +[user-inputted]% conf peaks of Ftest, Gamma-statistic, and overlapping peaks within 1 bandwidth (NW*fray) of each other
+    """Find +[user-inputted]% conf peaks of Ftest, Gamma-statistic, and overlapping peaks
     
     :Params:
         afFreq: (ndarray) fourier frequency array that corresponds to background-fitted PSD
@@ -638,11 +638,11 @@ def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit, NW, tdata):
         Gcrit: (float) gamma-test [input]% confidence level value
     
     :Returns:
-        Fpeaks: (ndarry) array of indices for Ftest peaks above Fcrit value
-        Gpeaks: (ndarry) array of indices for gamma-test peaks above Gcrit value
-        np.unique(afGtrue): (ndarray) array of interescting fourier frequency values where F- and gam-test peaks occur (with respect to Gamma-test)
-        np.unique(afFtrue): (ndarray) array of interescting fourier frequency values where F- and gam-test peaks occur (with respect to F-test)
-        FGpk_ind: (ndarray) corresponding array of indices , where both F-test and gam-test have peaks above their confidence levels (recall they share the same Fourier freq axis)
+        Fpeaks: (ndarry) "F-TEST DETECTION" array of indices for all Ftest peaks above Fcrit value
+        Gpeaks: (ndarry) "GAM-TEST DETECTION" array of indices for all gamma-test peaks above Gcrit value
+        Gpeak_bands: (list) tuple of ndarrays of gam-test peak fourier frequencies whose frequency bands have a width greater than (NW*fray)/2        
+        FGpk_freqs: (ndarray) "DUAL TEST DETECTION" array of fourier frequency values above the confidence level where the F-test peaks overlaps with the gam-test peak frequency bands
+        FGpk_ind: (ndarray) corresponding array of indices, where both F-test peaks overlap with and gam-test peak frequency bands (recall they share the same Fourier freq axis)
     """
     [dt, N, df, F_nyq] = get_tseries_params(tdata) #return dt, N, fray, fnyq
     """find_peaks gets angry about accepting only 1D arrays and afGam/af_Ftest are 1D arrays within an array. 
@@ -657,84 +657,47 @@ def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit, NW, tdata):
     print('Gpeaks freqs:\n', afFreq[Gpeaks])
     print('Fpeaks indices:', Fpeaks)
     print('Fpeaks freqs:\n', afFreq[Fpeaks])
-    freq_isect = np.intersect1d(freq_fpks, freq_gpks) #returns which frequency element values and indices intersect
-    FG_pk = np.intersect1d(Fpeaks, Gpeaks) #returns element value (which would be a peak-index) that intersects both Fpeaks and Gpeaks
-    print('With inputted conf level, frequency intersection(s) = %d'%(len(FG_pk)))
-    print('Intersection:',freq_isect, FG_pk)
-    ''';
-    #if achOpt == 'width': #new Jake way
-    #Find overlapping F-test and Gam-test peaks within 1 bandwidth (NW*fray) of each other (Jake way)
-    print('\n**Finding overlapping FG-peaks within 1 bandwidth (1*NW*fray = %0.3fHz)'%(NW*df))
-    afGtrue = np.array([])
+    '''
+    #--Find Gam-test peaks whose frequency bands have a bandwidth >= (NW*fray)/2 
+    print('\n**Finding G-peaks frequency bands with a size greater than NW*fray/2 = %0.3fHz'%(NW*df/2))
+    """We define an arrays of zeros and ones to represent our Fourier frequencies index location. Here, '1'
+    indicates values where the afGam > Gcrit. This gives us groups of 1's where we have Gpeak frequency bands"""
+    afGdummy = np.zeros(len(afFreq)) #initialize array of zeros
+    for i in range(len(afFreq)): # define index value as "1" if afGam[i] > Gcrit
+        if afGam[i] > Gcrit:
+            afGdummy[i] = 1
+    #print(afGdummy)
+    def split_array(x, xfreq):
+        #extract subarrays of 1's into a tuple list
+        arrays = np.split(x, np.where(x == 0)[0])
+        arrays = [item[1:] for item in arrays if len(item) > 1]
+        #print(arrays)
+        #extract the corresponding fourier frequencies from that tuple of 1-group subarrays
+        arrays_freqs = np.split(xfreq, np.where(x == 0)[0])
+        arrays_freqs = [item[1:] for item in arrays_freqs if len(item) > 1]
+        #print(arrays_freqs)
+        return(arrays_freqs);
+    aafGbands = split_array(afGdummy, afFreq) #return all Gpeak frequency bands
+    #print(afGband)
+       #-Check if Gpeak frequency bands BW >= (NW*fray)/2, else drop those arrays
+    nDrop_idx = np.array([]) #initialize empty drop index arrays
+    aafGbands_mtm = [] #initialize empty list    
+    for i in range(len(aafGbands)):
+        if (max(aafGbands[i])-min(aafGbands[i])) >= (NW*df/2):
+            #nDrop_idx = np.append(nDrop_idx, int(i))
+            aafGbands_mtm.append(aafGbands[i]) #add frequency bands to new list
+    #print(aafGbands_mtm)
+    #--"DUAL TEST CONDITION": Check if any Ftest-peak fall within the Gpeak frequency bands
+    """Since the Ftest and Gamtest share the same background-fitted fourier freq array. We just need to
+    create a single array of indices for the Ftest-peak frequencies that fall within the Gpeak bands"""
+    print('**Finding Fpeaks that overlap with the Gpeaks frequency bands')
     afFtrue = np.array([])
-    for i in range(len(Gpeaks)): #start checking if Fpeak-freqs fall within 1NW*fray of Gpeak-freqs
-        for j in range(len(Fpeaks)):
-            if np.abs(afFreq[Gpeaks[i]] - afFreq[Fpeaks[j]]) <= NW*df:
-                #print('Intersection at (g-ind = %d or Gpeak = %0.3fHz) and (f-ind = %d or Fpeak = %0.3fHz)'
-                #     %(Gpeaks[i], afFreq[Gpeaks[i]], Fpeaks[j], afFreq[Fpeaks[j]]))
-                #print new interescting INDEX locations
-                afGtrue = np.append(afGtrue, afFreq[Gpeaks[i]])
-                afFtrue = np.append(afFtrue, afFreq[Fpeaks[j]])
-    print('New NWfray-bw intersection Gpeak freqs:', np.unique(afGtrue)) #np.unique removes duplicate index locations
-    #afGpk_true = afFreq[np.unique(afGtrue).astype(int)]
-    #print('\t|---Gpeak freqs', afGpk_true)
-    print('New NWfray-bw intersection Fpeak freqs:', np.unique(afFtrue))
-    #afFpk_true = afFreq[np.unique(afFtrue).astype(int)]
-    #print('\t|---Fpeak freqs', afFpk_true)
-    """Since the Ftest and Gamtest share the same background-fitted fourier freq array. We just need
-    to create a single array of indices based on the unique FG-intersect freqs from the Ftest"""
-    #Define array of indices for FG-intersection frequencies (based on afFtrue)
-    afFtrue_unique = np.unique(afFtrue)
-    FGpk_ind = np.empty(len(afFtrue_unique), dtype=int) #define empty array of integers
-    #print(FGpk_ind)
-    for i in range(len(afFtrue_unique)):
-        flow_ray = np.argwhere(afFreq >= afFtrue_unique[i]) #find frequency index location of f_ray from original freq-array
-        #print('Index:', flow_ray[0,0], ', Freq val:', afFreq[flow_ray[0,0]])
-        FGpk_ind[i] = flow_ray[0,0]
-        #^---recall background-fitted Ftest and Gamtest share same Fourier freq array
-    print('Intersecting index locations:', FGpk_ind, afFreq[FGpk_ind])
-    return(Fpeaks, Gpeaks, np.unique(afGtrue), np.unique(afFtrue), FGpk_ind); 
-
-
-#---------OLD WAY--------------------
-#def get_gftest_confpeaks(afFreq, afGam, af_Ftest, Fcrit, Gcrit):
-    """Find +[user-inputted]% conf peaks of Ftest, Gamma-statistic, and overlapping peaks
-    
-    :Params:
-        afFreq: (ndarray) fourier frequency array that corresponds to background-fitted PSD
-        afGam: (ndarray) gamma-test array
-        af_Ftest: (ndarray) Ftest array that corresponds to background-fitted PSD
-        Fcrit: (float) Ftest [input]% confidence level value
-        Gcrit: (float) gamma-test [input]% confidence level value
-    
-    :Returns:
-        Fpeaks: (ndarry) array of indices for Ftest peaks above Fcrit value
-        Gpeaks: (ndarry) array of indices for gamma-test peaks above Gcrit value
-        FG_peaks: (ndarray) array of intersecting indices, where both F-test and gam-test have peaks above their confidence levels
-        freq_isect: (ndarray) array of fourier frequency values where intersecting F- and gam-test peaks occur
-    """
-
-    """
-    OLD WAY (10-6-2024)
-    #print(type(afGam), type(Gcrit))
-    #print(Gcrit)
-    #print(np.shape(afGam), np.shape(af_Ftest), np.shape(afFreq))
-    #print(np.shape(afGam[:,0]))
-    #find_peaks gets angry about accepting only 1D arrays and afGam/af_Ftest are 1D arrays within an array. 
-    #So I gotta index into them to avoid the errors
-    #Find peaks above [user-inputted]% conf threshold
-    Gpeaks, _ = find_peaks(afGam, height = Gcrit) #find indices where Gtest has peaks above conf threshol
-    Fpeaks, _ = find_peaks(af_Ftest, height = Fcrit)
-    freq_fpks = afFreq[Fpeaks] #defining corrsponding frequency array for peaks
-    freq_gpks = afFreq[Gpeaks]
-    #print('Gpeaks indices:', Gpeaks)
-    #print('Fpeaks indices:', Fpeaks)
-    #print('Fpeaks freqs:\n', afFreq[Fpeaks])
-    #print('Gpeaks freqs:\n', afFreq[Gpeaks])
-    freq_isect = np.intersect1d(freq_fpks, freq_gpks) #returns which frequency element values and indices intersect
-    FG_pk = np.intersect1d(Fpeaks, Gpeaks) #returns element value (which would be a peak-index) that intersects both Fpeaks and Gpeaks
-    print('With conf level, frequency intersection(s) = %d'%(len(FG_pk)))
-    print('Intersection:',freq_isect, FG_pk)
-    return(Fpeaks, Gpeaks, FG_pk, freq_isect); 
-    """;
-
+    FGpk_ind = np.empty(len(afFtrue), dtype=int) #define empty array of integers
+    for i in range(len(aafGbands_mtm)):
+        for j in range(len(freq_fpks)):
+            if freq_fpks[j] >= min(aafGbands_mtm[i]) and freq_fpks[j] <= max(aafGbands_mtm[i]):
+                #afFtrue = np.append(afFtrue, freq_fpks[j])
+                FGpk_ind = np.append(FGpk_ind, Fpeaks[j])
+                #^---recall background-fitted Ftest and Gamtest share same Fourier freq array
+    print('Overlapping index locations:', FGpk_ind, afFreq[FGpk_ind])
+    return(Fpeaks, Gpeaks, aafGbands_mtm, afFreq[FGpk_ind], FGpk_ind);  
