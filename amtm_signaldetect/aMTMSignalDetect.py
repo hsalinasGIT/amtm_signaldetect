@@ -127,7 +127,7 @@ def get_tseries_params(tdata):
 # ## 2) Function Which Returns the Background-Modelled aMTM PSD
 # * `get_background_psdfit()`:**With the above spectral data products ($S_k, \alpha_k, f_k$), we model the background PSD by using the 'maximum likelihood method' to apply either an analytical white noise (WHT), power law (PL), or bending power law (BPL) fit over a user-chosen frequency range**
 
-def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None):
+def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None, inMethod = None):
     """Using aMTM spectrum inputs, use the maximum log-likelihood approach to fit the noisy spectra 
     background with a Bending Power Law (BPL), Power Law (PL), or analytical White (WHT) Noise solution
     
@@ -168,6 +168,11 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
     '''Since the MTM Spectra and Corresponding Log-Likelihood Function both have a gamma distrbution, we
     must omit the 1st (0Hz) and last element (Nyq F) of the frequency array because both the spectrum 
     values at the zero and Nyquist frequency do not follow the chi-square distribution.'''
+     #Choose optimizer method (3-2025; Powell has more success rates for < 512 time series)
+    if inMethod == None:
+        achMeth = 'SLSQP' #default minimizer
+    else:
+        achMeth = 'Powell'
     # Fit Background Based on User Input
     if achFit == 'BPL': 
     #Define Initial Guestimates and Optimize BPL coefficients
@@ -180,7 +185,7 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
         fb_bnd = (Fj_in[0], Fj_in[-1])
         bpl_bnds = (c_bnd, bet_bnd, gam_bnd, fb_bnd)
         #print('\tBPL_guess = ', bpl_guess)
-        achMeth = 'SLSQP'#confirmed SLSQP is better than Powell
+        #achMeth = 'SLSQP'#confirmed SLSQP is better than Powell
         """ (9-2024) Confirmed SLSQP modells better than Powell and L-BFGS-B method fails"""
         print('\tUsing %s optimize method--v'%(achMeth))
         bpl_min = optimize.minimize(bpl_loglikeM_ctoo, x0 = bpl_guess, args=(Fj_in, Sj_in, alphaj_in), 
@@ -205,7 +210,7 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
         c_bnd = (np.min(Sj_in),np.max(Sj_in))#assuming [Smin, Smax] yielded best c-parameter for PL-fit. Need to check (10-6-2024); #old: (0, np.max(afSpec))
         bet_bnd = (0,10)
         pl_bnds = (c_bnd, bet_bnd)#[(bet_bnd)]
-        achMeth = 'SLSQP'#'Nelder-Mead'#'Powell'#'SLSQP'
+        #achMeth = 'SLSQP'#'Nelder-Mead'#'Powell'#'SLSQP'
         #it appears after properly extacting the beta0 as a float fixed the Powell Method (optimize beta and c)
         """ L-BFGS-B and fails (Powell[better] and SLSQP work)"""
         print('\tUsing %s optimize method--v'%(achMeth))
