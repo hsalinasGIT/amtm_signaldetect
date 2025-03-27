@@ -150,21 +150,21 @@ def get_background_psdfit(tdata,afFreq, afSpec, afAlpha, achFit, NW, Frange=None
     if Frange == None: #default frequency range [2NW*fray, fny-2NW*fray]
         f_low = np.argwhere(afFreq >= 2*NW*df)
         f_up = np.argwhere(afFreq >= (F_nyq-2*NW*df))
-        print('\tDefault Fitting Frequency Range: %0.1f to %0.1f Hz'%(afFreq[f_low[0,0]], afFreq[f_up[0,0]]))
+        print('\tDefault Fitting Frequency Range: %0.5f to %0.5f Hz'%(afFreq[f_low[0,0]], afFreq[f_up[0,0]]))
         Fj_in = afFreq[f_low[0,0]:f_up[0,0]]
         alphaj_in = afAlpha[f_low[0,0]:f_up[0,0]]
         Sj_in = afSpec[f_low[0,0]:f_up[0,0]]
-        achFreqRange = 'over (default) frequency range: [%0.2f, %0.2f] Hz'%(afFreq[f_low[0,0]], afFreq[f_up[0,0]]) 
+        achFreqRange = 'over (default) frequency range: [%0.5f, %0.5f] Hz'%(afFreq[f_low[0,0]], afFreq[f_up[0,0]]) 
     else: #user-chosen frequency rage
         print('\tFitting over frequency range', Frange,'Hz')
         f_low = np.argwhere(afFreq >= Frange[0])
         f_up = np.argwhere(afFreq >= Frange[1])
         #print(f_low[0,0],'-->',afFreq[f_low[0,0]], '\n', f_up[0,0], '-->', afFreq[f_up[0,0]])
-        print('\tor %0.1f to %0.1f Hz'%(afFreq[f_low[0,0]], afFreq[f_up[0,0]]))
+        print('\tor %0.5f to %0.5f Hz'%(afFreq[f_low[0,0]], afFreq[f_up[0,0]]))
         Fj_in = afFreq[f_low[0,0]:f_up[0,0]]
         alphaj_in = afAlpha[f_low[0,0]:f_up[0,0]]
         Sj_in = afSpec[f_low[0,0]:f_up[0,0]]
-        achFreqRange = 'over (user-chosen) frequency range: [%0.2f, %0.2f] Hz'%(afFreq[f_low[0,0]], afFreq[f_up[0,0]]) 
+        achFreqRange = 'over (user-chosen) frequency range: [%0.5f, %0.5f] Hz'%(afFreq[f_low[0,0]], afFreq[f_up[0,0]]) 
     '''Since the MTM Spectra and Corresponding Log-Likelihood Function both have a gamma distrbution, we
     must omit the 1st (0Hz) and last element (Nyq F) of the frequency array because both the spectrum 
     values at the zero and Nyquist frequency do not follow the chi-square distribution.'''
