@@ -24,7 +24,7 @@ import numpy as np
 ## 1) Function Which Returns aMTM Spectral Data Products
 #* `get_amtm_specs()`**uses Prieto's MTM package and returns aMTM power spectra ($S_k$), the corresponding frequencies ($f_k$), the half-degrees of freedom ($α_k$), and the Harmonic F-test ($F_k$) over the positive frequency range [0, $f_{ny}$].** 
 
-def get_amtm_specs(xdata, tdata, achFull, NW, Ktpr = None):
+def get_amtm_specs(xdata, tdata, achFull, NW, Ktpr = None, Nfft = None):
     """Using Prieto's MTM python package: Compute/return the aMTM PSD, corresponding frequencies, 
     half-degrees of freedom, and F-test arrays over the positive frequency range [0, fny]
     
@@ -34,6 +34,8 @@ def get_amtm_specs(xdata, tdata, achFull, NW, Ktpr = None):
         achFull: (str) option to return spectral products over full or positive frequency spectrum
         NW: (>1, an integer) frequency resolution bandwidth
         Ktpr: (optional, int) number of tapers to use 
+        Nfft: (optional, int) number of frequency points (defaults to N, else we recommend inputting 2N+1)
+
     :Returns:
         afFreq_pf: corresponding Fourier frequencies defined over positive frequency (pf) range
         afSk_pf: aMTM PSD estimate defined of positive frequency range
@@ -47,9 +49,14 @@ def get_amtm_specs(xdata, tdata, achFull, NW, Ktpr = None):
     [dt, N, fray, F_nyq] = get_tseries_params(tdata) #return dt, N, fray, fnyq
     afData_nmean = xdata-np.nanmean(xdata) #removing mean from data array
     print('Nyquist frequency = ', F_nyq, ', dt = ', dt, ', T = ', tdata[-1]-tdata[0], ', N = ', N)
+    if Nfft is None:
+        inNfft = N #default number of frequency points
+    else:
+        inNfft = Nfft #number of frequency points is based on user input (usually recommend 2N+1)
+        print('*Using custom input with nfft = %d'%inNfft)
     #--Extract Pietro MTM Spectra Data
     print('Creating Prieto MTSPEC class for Data(NW = %d, Ktpr = %d)'%(NW, Ktpr))
-    psd_class = MTSpec(afData_nmean, NW, Ktpr, dt, nfft = N, iadapt=0)     
+    psd_class = MTSpec(afData_nmean, NW, Ktpr, dt, nfft = inNfft, iadapt=0)     
     if achFull == 'full': #return entire frequency spectrum for all spectral dataproducts
         afFreq = psd_class.freq
         afRaw_Sk = psd_class.spec
